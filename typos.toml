@@ -1,0 +1,10 @@
+[files]
+# Default `true` would skip .github/ entirely, leaving every workflow comment
+# unchecked. Ignore files still apply, so .gitignore'd paths stay out.
+ignore-hidden = false
+# Consequence of the line above: un-hiding also un-hides .git, and typos will
+# otherwise walk loose objects and hook samples.
+extend-exclude = [".git/"]
+
+[default]
+locale = "en-us"

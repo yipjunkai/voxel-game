@@ -1,0 +1,70 @@
+[workspace]
+resolver = "3"
+members  = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+common     = { path = "crates/common" }
+sim        = { path = "crates/sim" }
+glam       = "0.33"
+log        = "0.4"
+env_logger = "0.11"
+
+[workspace.lints.rust]
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all      = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+# `warn`, not `deny`: nursery lints are unfinished by definition and carry
+# known false positives, so they report without failing a build.
+nursery = { level = "warn", priority = -1 }
+
+# Panic restrictions. These live in `restriction`, which is a grab-bag of
+# mutually contradictory lints, so they are picked individually rather than
+# enabled as a group -- clippy's own `blanket_clippy_restriction_lints`
+# (denied via `all`) rejects `restriction = "deny"`.
+unwrap_used      = "deny"
+expect_used      = "deny"
+indexing_slicing = "deny"
+string_slice     = "deny" # Disjoint from indexing_slicing, which does not cover `str`.
+panic            = "deny"
+unreachable      = "deny"
+exit             = "deny"
+unimplemented    = "deny"
+todo             = "warn"
+
+module_name_repetitions = "allow"
+missing_errors_doc      = "allow"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# CI-only profile: CI never runs the game, so optimizing the dependency graph
+# is most of the cold-build CPU for no benefit. Selected with `--profile ci`,
+# except under `cargo nextest`, where that flag is nextest's own and this
+# profile moves to `--cargo-profile ci`.
+#
+# `debug = 0` is required, not cosmetic: setup-rust-toolchain exports
+# CARGO_PROFILE_DEV_DEBUG=0, which stops applying the moment we leave the dev
+# profile, and `inherits` picks up dev's manifest default rather than that
+# override. Without this line the target dir roughly doubles.
+[profile.ci]
+inherits = "dev"
+debug    = 0
+
+[profile.ci.package."*"]
+opt-level = 0
+
+# A named override beats the "*" glob. glam stays optimized so that sim tests
+# do not crawl once there are real ones.
+[profile.ci.package.glam]
+opt-level = 3

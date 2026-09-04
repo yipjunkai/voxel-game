@@ -1,0 +1,14 @@
+# Nightly rather than stable because rustfmt.toml sets group_imports and
+# imports_granularity, both of which are nightly-only. Pinned to a date so that
+# every CI job and every machine resolves one identical compiler; a bare
+# `nightly` would reinstall whatever shipped that morning and could turn a PR
+# red without anyone changing code.
+#
+# This file is the single toolchain pin for the repo — CI passes no `toolchain:`
+# input anywhere, so raising the date here moves fmt, clippy, test, the release
+# builds and the version bump together. Nothing bumps it automatically;
+# Dependabot does not read this file.
+[toolchain]
+channel    = "nightly-2026-05-26"
+components = ["rustfmt", "clippy"]
+profile    = "minimal"

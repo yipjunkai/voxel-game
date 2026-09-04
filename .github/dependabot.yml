@@ -1,0 +1,44 @@
+version: 2
+
+# Every action in .github/workflows/ is pinned to a full commit SHA. That stops
+# a mutable tag being repointed at hostile code, but it also means nothing will
+# ever tell us a new release exists — the pins rot silently. Dependabot is the
+# other half of that trade: it rewrites both the SHA and the trailing
+# `# vX.Y.Z` comment, so pinning does not cost us updates.
+#
+# conventional.yml runs `cog check` over every commit, and Dependabot's default
+# subject ("Bump X from A to B") is not a conventional commit — verified locally
+# as REJECTED by cog. The commit-message prefixes below are therefore
+# load-bearing: without them every Dependabot PR fails CI on its own commit
+# message.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    # One PR for all actions rather than one each. taiki-e/install-action alone
+    # ships near-daily, so ungrouped updates would drown the repo.
+    groups:
+      github-actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    # Minor and patch bumps land together; majors arrive as their own PR so a
+    # breaking release is reviewed on its own.
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 10

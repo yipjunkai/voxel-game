@@ -1,0 +1,15 @@
+# How nextest RUNS the tests. Cargo's [profile.ci] in Cargo.toml is a separate
+# thing — how they are COMPILED. Both are named `ci`, and both are selected on
+# the same command line: `--profile ci` picks this file, `--cargo-profile ci`
+# picks Cargo's. Custom profiles start as a copy of nextest's built-in
+# `default`, so only the CI-specific overrides appear below.
+[profile.ci]
+
+# Report every failure in one run. The default stops at the first, which costs
+# a full CI round trip per failing test when several break at once.
+fail-fast = false
+
+# Flag a test slow at 60s, kill it after three such periods (180s). A hung GPU
+# or socket test would otherwise burn the job's full 6h GitHub timeout before
+# anyone sees it.
+slow-timeout = { period = "60s", terminate-after = 3 }

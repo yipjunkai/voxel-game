@@ -1,0 +1,68 @@
+name: Scorecard
+
+# OpenSSF Scorecard: an automated audit of this repository's supply-chain
+# posture -- branch protection, SHA-pinned actions, token permissions, signed
+# releases. It scores the repository, not the Rust in it; checks.yml owns code
+# quality and this owns everything around it.
+on:
+  # Branch-Protection reads the ruleset directly, so editing that ruleset moves
+  # the score with no commit behind it to trigger a rescan.
+  branch_protection_rule:
+  # The score drifts without commits too, and the published result the badge
+  # reads goes stale. Tuesday, offset from dependabot.yml's Monday so a week of
+  # action bumps has already landed before the pinning checks look.
+  schedule:
+    - cron: "23 5 * * 2"
+
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: scorecard
+    runs-on: ubuntu-latest
+    permissions:
+      # A job-level block replaces the top-level one outright rather than
+      # merging into it, so contents: read is repeated here, not inherited.
+      contents: read
+      # Publishes the SARIF to Security > Code scanning. Free on public repos;
+      # this would require Advanced Security if the repo were private.
+      security-events: write
+      # Mints the OIDC token that publish_results signs its upload with.
+      # Without it the run still scores locally, but the badge never updates.
+      id-token: write
+      # Lets Scorecard list this repo's workflow runs, which several checks
+      # read to tell a configured tool from a merely committed config file.
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Scorecard's own Dangerous-Workflow check faults a checkout that
+          # leaves GITHUB_TOKEN in .git/config for any later step to reuse.
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # The line the README badge hangs on: it uploads the score to the
+          # public OpenSSF API that api.scorecard.dev serves the badge from.
+          # Without it the badge renders "unknown" indefinitely. Publishing
+          # requires a public repository.
+          publish_results: true
+
+      # Kept separately from code scanning, which retains only the latest alert
+      # state -- this is the raw result attributable to one specific commit.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: results.sarif

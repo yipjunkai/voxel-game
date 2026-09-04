@@ -1,0 +1,16 @@
+tag_prefix           = "v"
+ignore_merge_commits = true
+
+# cocogitto only reads here -- `cog check` in conventional.yml, `cog changelog`
+# for release notes -- so there are no bump hooks. Do not run `cog bump` by hand:
+# it tags immediately, and release.yml exists to tag only after every target has
+# built. `cog bump --auto --dry-run` asks the version without acting on it.
+
+# A set. `template = "remote"` is what makes changelog entries links, and without
+# the three keys under it cog aborts -- "Variable `repository_url` not found in
+# context" -- rather than falling back to plain text.
+[changelog]
+template   = "remote"
+remote     = "github.com"
+owner      = "yipjunkai"
+repository = "voxel-game"

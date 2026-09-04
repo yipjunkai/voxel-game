@@ -1,0 +1,118 @@
+name: Checks
+
+# The quality gate, and the only thing standing between a pull request and main.
+# release.yml does not call it: required status checks mean nothing lands on main
+# unchecked, so a release can rely on this having already passed. Every job here
+# is platform-independent, so each runs once on ubuntu-latest rather than across
+# the release build matrix.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# PRs supersede themselves, but main pushes must not — canceling one loses the
+# run's only cache save and leaves that commit unvalidated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# Every job carries an explicit `name:`. Without one the check-run name defaults
+# to the job id, so renaming a job would silently rename the check the branch
+# ruleset requires -- and a required check that no longer exists does not fail,
+# it never reports, and the ruleset waits for it forever. These four strings and
+# conventional.yml's two are referenced verbatim by the ruleset; changing one
+# means changing it there in the same breath.
+jobs:
+  rustfmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # cache: false because nothing here compiles: `cargo fmt` shells out to
+      # `cargo metadata --no-deps`, so there is no target dir or registry to hold.
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache: false
+
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: install client build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libx11-dev libxkbcommon-dev libwayland-dev \
+            libxcursor-dev libxrandr-dev libxi-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache-save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # No `-D warnings`: lint levels live in Cargo.toml so that this job and a
+      # local `cargo clippy` agree. `-D warnings` overrode them, collapsing every
+      # `warn` into an error and making the advisory levels unreachable.
+      - run: cargo clippy --workspace --all-targets --locked --profile ci
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: install client build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libx11-dev libxkbcommon-dev libwayland-dev \
+            libxcursor-dev libxrandr-dev libxi-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache-save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Pinned by hand: Dependabot bumps the action SHA above but never reads
+      # inside `tool:`. Bump the action FIRST and this pin second — a version
+      # the pinned manifest doesn't know drops silently to the slow fallback.
+      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: cargo-nextest@0.9.143
+
+      # Both flags are required and the near-identical names are not a typo:
+      # `--profile` is nextest's, `--cargo-profile` is Cargo's. See
+      # .config/nextest.toml. Dropping the second is silent — the build falls
+      # back to the dev-inherited `test` profile and re-optimizes every
+      # dependency.
+      #
+      # --no-tests=warn because nextest exits 4 on an empty run by default
+      # (since 0.9.85) and the workspace has no #[test] yet. Delete it with
+      # the first real test.
+      - run: >
+          cargo nextest run --workspace --locked
+          --profile ci --cargo-profile ci --no-tests=warn
+
+      # nextest cannot run doctests. Without this step they would silently go
+      # unchecked the moment common or sim grow /// examples.
+      - run: cargo test --doc --workspace --locked --profile ci
+
+  taplo:
+    name: taplo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: taplo@0.10.0
+
+      - run: taplo fmt --check
+
+      - run: taplo lint

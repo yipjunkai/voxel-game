@@ -1,0 +1,10 @@
+# Relaxes the panic denials in Cargo.toml inside test context only; production
+# code is unaffected. A panicking assertion in a test is the failure report,
+# not a defect, so `?`-threading it buys nothing.
+#
+# There is no equivalent key for string_slice, unreachable, unimplemented or
+# exit, so those four deny in tests as well.
+allow-unwrap-in-tests           = true
+allow-expect-in-tests           = true
+allow-panic-in-tests            = true
+allow-indexing-slicing-in-tests = true

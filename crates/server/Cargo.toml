@@ -1,0 +1,19 @@
+[package]
+name              = "server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "voxel-game-server"
+path = "src/main.rs"
+
+[dependencies]
+common.workspace     = true
+sim.workspace        = true
+log.workspace        = true
+env_logger.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,60 @@
+name: Conventional Commits
+
+# Both halves of one rule: the commits on a branch, and the PR title that
+# replaces them under squash merge. `edited` is required so that retitling a PR
+# revalidates it; it cannot go on checks.yml's trigger without recompiling the
+# workspace on every description tweak, which is why this is a separate file.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+# Safe to cancel on main too, unlike checks.yml: `cog check` walks the history
+# every run, so anything a superseded run would have caught is caught by the next.
+concurrency:
+  group: conventional-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# `name:` on both jobs is load-bearing, not decoration -- see the note in
+# checks.yml. The ruleset requires these strings verbatim.
+jobs:
+  commits:
+    name: conventional commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
+        with:
+          command: check
+
+  title:
+    name: conventional title
+    # There is no pull_request context on a push, so this half is PR-only. On
+    # main the squashed subject is already part of the history the commits job
+    # walks, so nothing goes unchecked.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Checked out only so cog reads this repo's cog.toml instead of its
+      # built-in defaults; a commit type added there would otherwise be
+      # silently ignored here while still passing the commits job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
+        with:
+          install-only: true
+
+      # Under squash merge this string becomes the subject of the only commit
+      # that reaches main, which is what the commits job never sees. Passed
+      # through env rather than interpolated: the title is attacker controlled,
+      # and `run:` interpolation would make it shell injection.
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: cog verify "$TITLE"
