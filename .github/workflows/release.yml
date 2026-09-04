@@ -34,12 +34,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      name: ${{ steps.version.outputs.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: read workspace version
+      # Both values are read here, in the job that runs before everything else,
+      # so the manifest is parsed once and build and publish cannot disagree.
+      # publish has no Rust toolchain, so it cannot ask cargo itself -- and a
+      # bare `cargo` there would send rustup after the pinned nightly.
+      - name: read workspace version and name
         id: version
         shell: bash
         run: |
@@ -50,6 +55,14 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          name=$(sed -n '/^\[workspace\.metadata\]/,/^\[/p' Cargo.toml \
+            | sed -n 's/^name *= *"\(.*\)"/\1/p')
+          if [ -z "$name" ]; then
+            echo "could not read name from [workspace.metadata]" >&2
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       # First of the two assertions that bound a tag, given its signature is not
       # verified. Guards the mistake manual tagging makes easy: signing v0.2.0
@@ -93,21 +106,18 @@ jobs:
       matrix:
         include:
           - crate: server
-            bin: voxel-game-server
             runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             platform: linux-x64
             ext: tar.gz
             exe: ""
           - crate: client
-            bin: voxel-game
             runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             platform: linux-x64
             ext: tar.gz
             exe: ""
           - crate: client
-            bin: voxel-game
             runner: windows-latest
             target: x86_64-pc-windows-msvc
             platform: windows-x64
@@ -115,7 +125,6 @@ jobs:
             exe: ".exe"
           # macos-latest is arm64 only, so Intel Macs are unserved.
           - crate: client
-            bin: voxel-game
             runner: macos-latest
             target: aarch64-apple-darwin
             platform: macos-arm64
@@ -152,11 +161,28 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.verify.outputs.version }}
+          NAME: ${{ needs.verify.outputs.name }}
         run: |
-          name="voxel-game-${{ matrix.crate }}-v${VERSION}-${{ matrix.platform }}"
+          # The binary's name comes from the crate's [[bin]] target, so read it
+          # from the manifest rather than keeping a second copy in the matrix.
+          # A matrix copy goes stale silently: renaming a binary would still
+          # build green and only fail at the cp below. --no-deps keeps this to a
+          # manifest parse -- no dependency resolution, no network, ~20ms.
+          #
+          # The jq error() is the assertion: `shell: bash` runs with -o pipefail,
+          # so a crate with no [[bin]], or two, fails the step here rather than
+          # producing an archive with the wrong file in it.
+          bin=$(cargo metadata --format-version 1 --no-deps \
+            | jq -r --arg pkg "${{ matrix.crate }}" \
+              '[.packages[] | select(.name == $pkg) | .targets[]
+                | select(.kind[] == "bin") | .name]
+               | if length == 1 then .[0]
+                 else error("expected one [[bin]] in \($pkg), got \(length)") end')
+
+          name="${NAME}-${{ matrix.crate }}-v${VERSION}-${{ matrix.platform }}"
           echo "ARCHIVE_NAME=$name" >> "$GITHUB_ENV"
           mkdir -p "staging/$name" dist
-          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}${{ matrix.exe }}" "staging/$name/"
+          cp "target/${{ matrix.target }}/release/${bin}${{ matrix.exe }}" "staging/$name/"
           cp LICENSE README.md "staging/$name/"
           if [ "${{ matrix.crate }}" = "client" ]; then
             cp -R assets "staging/$name/"
@@ -218,7 +244,8 @@ jobs:
       - name: attach attestation bundle
         env:
           VERSION: ${{ needs.verify.outputs.version }}
-        run: cp "${{ steps.attest.outputs.bundle-path }}" "dist/voxel-game-v${VERSION}.sigstore.json"
+          NAME: ${{ needs.verify.outputs.name }}
+        run: cp "${{ steps.attest.outputs.bundle-path }}" "dist/${NAME}-v${VERSION}.sigstore.json"
 
       - uses: cocogitto/cocogitto-action@52d0023b4396897f1815648e553db2ab8d782f3a # v4.2.0
         with:

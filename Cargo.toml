@@ -8,6 +8,14 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false
 
+# Cargo ignores this table; it exists so release.yml has one place to read the
+# product name from -- it names the release archives and the attestation bundle.
+# Deliberately not derived from a [[bin]] name: the client binary happens to
+# share this string today, and coupling them would mean renaming the client
+# also renamed the server's archives.
+[workspace.metadata]
+name = "voxel-game"
+
 [workspace.dependencies]
 common     = { path = "crates/common" }
 sim        = { path = "crates/sim" }
