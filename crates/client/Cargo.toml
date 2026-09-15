@@ -6,7 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "voxel-game"
+name = "voxel-game"  # TODO(rename): product name
 path = "src/main.rs"
 
 [dependencies]

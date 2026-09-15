@@ -12,5 +12,5 @@ ignore_merge_commits = true
 [changelog]
 template   = "remote"
 remote     = "github.com"
-owner      = "yipjunkai"
-repository = "voxel-game"
+owner      = "yipjunkai"  # TODO(repo): GitHub owner
+repository = "voxel-game" # TODO(repo): GitHub repo name
