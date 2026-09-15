@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
-use winit::{
-    event::{ElementState, MouseButton},
-    keyboard::KeyCode,
-};
+use winit::event::{ElementState, MouseButton};
+use winit::keyboard::KeyCode;
 
 #[derive(Default, Debug)]
 pub struct Input {
@@ -51,14 +49,17 @@ impl Input {
     }
 
     /// Went down this frame. For one-shot actions: jump, place block.
+    #[allow(dead_code)]
     pub fn just_pressed(&self, code: KeyCode) -> bool {
         self.pressed.contains(&code)
     }
 
+    #[allow(dead_code)]
     pub fn is_mouse_down(&self, button: MouseButton) -> bool {
         self.mouse_held.contains(&button)
     }
 
+    #[allow(dead_code)]
     pub fn mouse_just_pressed(&self, button: MouseButton) -> bool {
         self.mouse_pressed.contains(&button)
     }
@@ -72,6 +73,7 @@ impl Input {
     }
 
     /// Decision made: not cleared on alt-tab.
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.held.clear();
         self.pressed.clear();
