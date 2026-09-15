@@ -74,9 +74,17 @@ impl Renderer {
             color_space: SurfaceColorSpace::default(),
             width: size.width,
             height: size.height,
-            present_mode: caps.present_modes[0],
+            present_mode: caps
+                .present_modes
+                .first()
+                .copied()
+                .ok_or_else(|| anyhow!("surface and adapter share no present mode"))?,
             desired_maximum_frame_latency: 2,
-            alpha_mode: caps.alpha_modes[0],
+            alpha_mode: caps
+                .alpha_modes
+                .first()
+                .copied()
+                .ok_or_else(|| anyhow!("surface and adapter share no alpha mode"))?,
             view_formats: vec![],
         };
         surface.configure(&device, &config);

@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use winit::{
-    application::ApplicationHandler,
-    event::{MouseButton, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::Window,
-};
+use winit::application::ApplicationHandler;
+use winit::event::{MouseButton, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::Window;
 
 mod input;
 mod render;
@@ -28,7 +26,7 @@ const MOUSE_SLOTS: [(MouseButton, char); 2] = [(MouseButton::Left, 'L'), (MouseB
 
 const EMPTY_SLOT: char = '_';
 
-fn slot(held: bool, label: char) -> char {
+const fn slot(held: bool, label: char) -> char {
     if held { label } else { EMPTY_SLOT }
 }
 
@@ -69,8 +67,25 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let window_attributes = Window::default_attributes().with_title(TITLE);
 
-        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        self.renderer = Some(Renderer::new(window).expect("renderer initialization failed"));
+        let window = match event_loop.create_window(window_attributes) {
+            Ok(window) => Arc::new(window),
+            Err(error) => {
+                eprintln!("failed to create window: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        let renderer = match Renderer::new(window) {
+            Ok(renderer) => renderer,
+            Err(error) => {
+                eprintln!("failed to initialize renderer: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        self.renderer = Some(renderer);
         self.sync_title();
     }
 
