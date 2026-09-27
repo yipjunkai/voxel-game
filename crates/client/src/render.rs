@@ -22,18 +22,28 @@ struct Vertex {
 
 const VERTICES: &[Vertex] = &[
     Vertex {
-        position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
-    },
+        position: [-0.086_824_1, 0.492_403_86, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // A
     Vertex {
-        position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
-    },
+        position: [-0.495_134_06, 0.069_586_47, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // B
     Vertex {
-        position: [0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
-    },
+        position: [-0.219_185_49, -0.449_397_06, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // C
+    Vertex {
+        position: [0.359_669_98, -0.347_329_1, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // D
+    Vertex {
+        position: [0.441_473_72, 0.234_735_9, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // E
 ];
+
+const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
 /// Everything that only exists once there is a window to draw into. Held behind
 /// a single `Option` in `App`, so the whole set is present or absent together.
@@ -46,6 +56,8 @@ pub struct Renderer {
     render_pipeline: RenderPipeline,
     vertex_buffer: Buffer,
     num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
 }
 
 impl Vertex {
@@ -140,9 +152,16 @@ impl Renderer {
             contents: cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
-
         #[allow(clippy::cast_possible_truncation)]
         let num_vertices = VERTICES.len() as u32;
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        #[allow(clippy::cast_possible_truncation)]
+        let num_indices = INDICES.len() as u32;
 
         Ok(Self {
             window,
@@ -153,6 +172,8 @@ impl Renderer {
             render_pipeline,
             vertex_buffer,
             num_vertices,
+            index_buffer,
+            num_indices,
         })
     }
 
@@ -294,9 +315,10 @@ impl Renderer {
                 ..Default::default()
             });
 
-            render_pass.set_pipeline(&self.render_pipeline); // 2.
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..1); // 3.
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         self.queue.submit([encoder.finish()]);
