@@ -1,14 +1,39 @@
+use std::mem::size_of;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use bytemuck::cast_slice;
+use wgpu::util::DeviceExt;
 use wgpu::{
-    Backends, Color, CommandEncoderDescriptor, CurrentSurfaceTexture, Device, DeviceDescriptor,
-    Instance, InstanceDescriptor, LoadOp, Operations, PowerPreference, Queue,
+    Backends, Buffer, Color, CommandEncoderDescriptor, CurrentSurfaceTexture, Device,
+    DeviceDescriptor, Instance, InstanceDescriptor, LoadOp, Operations, PowerPreference, Queue,
     RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RequestAdapterOptions,
     StoreOp, Surface, SurfaceColorSpace, SurfaceConfiguration, TextureFormat, TextureUsages,
     TextureViewDescriptor,
 };
 use winit::window::Window;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [0.0, 0.5, 0.0],
+        color: [1.0, 0.0, 0.0],
+    },
+    Vertex {
+        position: [-0.5, -0.5, 0.0],
+        color: [0.0, 1.0, 0.0],
+    },
+    Vertex {
+        position: [0.5, -0.5, 0.0],
+        color: [0.0, 0.0, 1.0],
+    },
+];
 
 /// Everything that only exists once there is a window to draw into. Held behind
 /// a single `Option` in `App`, so the whole set is present or absent together.
@@ -19,6 +44,21 @@ pub struct Renderer {
     queue: Queue,
     config: SurfaceConfiguration,
     render_pipeline: RenderPipeline,
+    vertex_buffer: Buffer,
+    num_vertices: u32,
+}
+
+impl Vertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 2] =
+        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+
+    const fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBS,
+        }
+    }
 }
 
 impl Renderer {
@@ -95,6 +135,15 @@ impl Renderer {
 
         let render_pipeline = Self::create_render_pipeline(&device, config.format);
 
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        #[allow(clippy::cast_possible_truncation)]
+        let num_vertices = VERTICES.len() as u32;
+
         Ok(Self {
             window,
             surface,
@@ -102,6 +151,8 @@ impl Renderer {
             queue,
             config,
             render_pipeline,
+            vertex_buffer,
+            num_vertices,
         })
     }
 
@@ -123,8 +174,8 @@ impl Renderer {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"), // 1.
-                buffers: &[],                 // 2.
+                entry_point: Some("vs_main"),     // 1.
+                buffers: &[Some(Vertex::desc())], // 2.
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -244,7 +295,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.render_pipeline); // 2.
-            render_pass.draw(0..3, 0..1); // 3.
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..self.num_vertices, 0..1); // 3.
         }
 
         self.queue.submit([encoder.finish()]);
